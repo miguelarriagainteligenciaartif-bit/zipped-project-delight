@@ -15,21 +15,46 @@ export interface NYTime {
   timeString: string;
 }
 
-export interface TradeData {
+export type EntryModel = 'M1' | 'M3';
+
+export interface SingleTradeData {
+  model: EntryModel;
+  fvgCount: 1 | 2 | 3;
+  notes: string;
+  result: 'win' | 'loss' | null;
+  points: number | null;
+}
+
+/** @deprecated Keep for backward compat with old saved data */
+export interface LegacyTradeData {
   fvgCount: number;
   notes: string;
   result: 'win' | 'loss' | null;
   points: number | null;
 }
 
+export interface TradeData {
+  tradeCount: 1 | 2 | 3;
+  trades: SingleTradeData[];
+  notes: string;
+}
+
 export interface ChecklistData {
   date: string;
   checklist: Record<string, boolean[]>;
   hadEntry: boolean | undefined;
-  tradeData: TradeData | null;
+  tradeData: TradeData | LegacyTradeData | null;
   noEntryReasons: string[];
   notes: string;
   savedAt?: string;
+}
+
+export function isNewTradeData(data: TradeData | LegacyTradeData | null): data is TradeData {
+  return data !== null && 'trades' in data && Array.isArray((data as TradeData).trades);
+}
+
+export function isLegacyTradeData(data: TradeData | LegacyTradeData | null): data is LegacyTradeData {
+  return data !== null && !('trades' in data) && 'fvgCount' in data;
 }
 
 export interface Statistics {
