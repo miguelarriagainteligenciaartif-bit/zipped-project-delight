@@ -15,7 +15,7 @@ export interface NYTime {
   timeString: string;
 }
 
-export type EntryModel = 'M1' | 'M3';
+export type EntryModel = 'M1' | 'M3' | 'Continuación';
 
 export interface SingleTradeData {
   model: EntryModel;

@@ -239,13 +239,13 @@ function TradeForm({ trade, tradeIndex, tradeCount, onChange }: TradeFormProps) 
       {/* Entry Model */}
       <div>
         <p className="text-sm font-medium text-foreground mb-3">¿Qué modelo utilizaste para entrar?</p>
-        <div className="flex gap-3">
-          {(['M1', 'M3'] as EntryModel[]).map(model => (
+        <div className="grid grid-cols-3 gap-3">
+          {(['M1', 'M3', 'Continuación'] as EntryModel[]).map(model => (
             <button
               key={model}
               type="button"
               onClick={() => onChange({ model })}
-              className={`flex-1 py-4 rounded-xl border-2 font-titles font-bold text-lg transition-all ${
+              className={`py-4 rounded-xl border-2 font-titles font-bold text-sm sm:text-lg transition-all ${
                 trade.model === model
                   ? 'border-primary bg-primary/10 text-primary gold-shadow'
                   : 'border-border text-foreground hover:border-primary hover:bg-primary/5'
