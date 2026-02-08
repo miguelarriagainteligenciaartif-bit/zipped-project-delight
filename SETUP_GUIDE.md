@@ -139,12 +139,16 @@ CREATE TRIGGER update_profiles_updated_at
 
 ## PASO 8: Configurar el código
 
-### Opción A: Editar en GitHub (más fácil)
+### ⚠️ IMPORTANTE: El archivo `.env` NO aparece en GitHub
+
+El archivo `.env` está oculto por seguridad (está en `.gitignore`). **Hay que CREARLO manualmente.**
+
+### Opción A: Crear en GitHub (más fácil)
 
 1. Ir a tu fork en GitHub
-2. Buscar y abrir el archivo **`.env`** en la raíz del proyecto
-3. Clic en el ícono de **lápiz** (editar)
-4. Reemplazar el contenido con tus datos:
+2. Clic en el botón **"Add file"** → **"Create new file"**
+3. En el nombre del archivo, escribir: **`.env`**
+4. En el contenido, pegar lo siguiente con tus datos:
 
 ```
 VITE_SUPABASE_PROJECT_ID="tu_project_id_aqui"
@@ -152,17 +156,17 @@ VITE_SUPABASE_PUBLISHABLE_KEY="tu_anon_key_aqui"
 VITE_SUPABASE_URL="https://tu_project_id.supabase.co"
 ```
 
-5. Clic en **"Commit changes"**
+5. Clic en **"Commit new file"**
 
-### Opción B: Editar en local
+### Opción B: Crear en local
 
 1. Clonar tu fork:
    ```bash
    git clone https://github.com/TU-USUARIO/TU-REPO.git
    cd TU-REPO
    ```
-2. Abrir el archivo `.env` con un editor de texto
-3. Reemplazar los valores como en la Opción A
+2. **Crear** un archivo llamado **`.env`** en la raíz del proyecto (al mismo nivel que `package.json`)
+3. Pegar el contenido con tus datos (igual que en Opción A)
 4. Guardar
 
 ---
