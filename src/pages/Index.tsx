@@ -51,7 +51,8 @@ const Index = () => {
         username={username}
         onLogout={handleLogout}
       />
-      <main className="ml-16 md:ml-60 flex-1 p-4 md:p-8 min-h-screen">
+      {/* pt-14 = top bar height on mobile, pb-20 = bottom nav on mobile */}
+      <main className="flex-1 pt-16 pb-20 px-4 md:pt-0 md:pb-0 md:ml-60 md:p-8 min-h-screen">
         {currentView === 'checklist' && <ChecklistWizard key={currentView} />}
         {currentView === 'history' && <HistoryView key={currentView} />}
         {currentView === 'statistics' && <StatisticsView key={currentView} />}
