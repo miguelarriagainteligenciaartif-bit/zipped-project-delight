@@ -1,4 +1,5 @@
-import type { NYTime, ChecklistData, UserData, TradeHistoryItem } from './types';
+import type { NYTime, ChecklistData, UserData, TradeHistoryItem, SingleTradeData } from './types';
+import { isNewTradeData, isLegacyTradeData } from './types';
 import { STEPS, TRADING_CONFIG } from './checklist-config';
 
 const KEYS = {
@@ -108,6 +109,29 @@ export function saveTodayChecklist(data: ChecklistData) {
   saveUserData(userData);
 }
 
+// ========== HELPERS TO GET ALL TRADES FROM A DAY ==========
+
+function getAllTradesFromDay(day: ChecklistData): SingleTradeData[] {
+  if (!day.hadEntry || !day.tradeData) return [];
+
+  if (isNewTradeData(day.tradeData)) {
+    return day.tradeData.trades;
+  }
+
+  if (isLegacyTradeData(day.tradeData)) {
+    // Convert legacy to single trade for stats
+    return [{
+      model: 'M1',
+      fvgCount: (day.tradeData.fvgCount || 1) as 1 | 2 | 3,
+      notes: day.tradeData.notes || '',
+      result: day.tradeData.result,
+      points: day.tradeData.points,
+    }];
+  }
+
+  return [];
+}
+
 // ========== STATISTICS ==========
 
 export function isChecklistComplete(checklist: Record<string, boolean[]>): boolean {
@@ -142,10 +166,14 @@ export function updateStatistics(userData: UserData) {
     if (day.checklist?.registro) delete day.checklist.registro;
     totalDays++;
     if (isChecklistComplete(day.checklist)) checklistCompleteCount++;
-    if (day.hadEntry && day.tradeData) {
+
+    const trades = getAllTradesFromDay(day);
+    if (trades.length > 0) {
       daysWithEntry++;
-      if (day.tradeData.result === 'win') { totalWins++; totalPoints += day.tradeData.points || 0; }
-      else if (day.tradeData.result === 'loss') { totalLosses++; totalPoints += day.tradeData.points || 0; }
+      trades.forEach(trade => {
+        if (trade.result === 'win') { totalWins++; totalPoints += trade.points || 0; }
+        else if (trade.result === 'loss') { totalLosses++; totalPoints += trade.points || 0; }
+      });
     }
   });
 
@@ -179,11 +207,22 @@ export function getTradeHistory(filterDays: string = 'all'): TradeHistoryItem[] 
   return trades;
 }
 
-export function updateTradeResult(dateKey: string, result: 'win' | 'loss') {
+export function updateTradeResult(dateKey: string, tradeIndex: number, result: 'win' | 'loss') {
   const userData = getUserData();
-  if (!userData?.trades[dateKey]?.tradeData) return;
-  userData.trades[dateKey].tradeData!.result = result;
-  userData.trades[dateKey].tradeData!.points = 0;
+  if (!userData?.trades[dateKey]) return;
+
+  const day = userData.trades[dateKey];
+
+  if (isNewTradeData(day.tradeData)) {
+    if (tradeIndex < day.tradeData.trades.length) {
+      day.tradeData.trades[tradeIndex].result = result;
+      day.tradeData.trades[tradeIndex].points = 0;
+    }
+  } else if (isLegacyTradeData(day.tradeData)) {
+    day.tradeData.result = result;
+    day.tradeData.points = 0;
+  }
+
   updateStatistics(userData);
   saveUserData(userData);
 }
@@ -197,10 +236,15 @@ export function getWeekdayStatistics(): { labels: string[]; data: number[] } {
 
   if (userData) {
     Object.entries(userData.trades).forEach(([dateStr, data]) => {
-      if (!data.hadEntry || !data.tradeData) return;
+      const trades = getAllTradesFromDay(data);
+      if (trades.length === 0) return;
       const weekday = new Date(dateStr).getDay();
-      stats[weekday].trades++;
-      if (data.tradeData.result === 'win') stats[weekday].wins++;
+      trades.forEach(trade => {
+        if (trade.result) {
+          stats[weekday].trades++;
+          if (trade.result === 'win') stats[weekday].wins++;
+        }
+      });
     });
   }
 
@@ -217,11 +261,16 @@ export function getChecklistCorrelation(): { labels: string[]; data: number[] } 
 
   if (userData) {
     Object.values(userData.trades).forEach(data => {
-      if (!data.hadEntry || !data.tradeData) return;
+      const trades = getAllTradesFromDay(data);
+      if (trades.length === 0) return;
       const complete = isChecklistComplete(data.checklist);
       const bucket = complete ? c100 : cBelow;
-      bucket.trades++;
-      if (data.tradeData.result === 'win') bucket.wins++;
+      trades.forEach(trade => {
+        if (trade.result) {
+          bucket.trades++;
+          if (trade.result === 'win') bucket.wins++;
+        }
+      });
     });
   }
 

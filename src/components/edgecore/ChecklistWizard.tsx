@@ -1,15 +1,17 @@
 import { useState, useCallback } from 'react';
 import {
   ChevronLeft, ChevronRight, Check, Brain, Calendar, CalendarRange,
-  CalendarCheck, Clock, Timer, Crosshair, Pen, AlertTriangle, Info, CircleAlert, Quote, CheckCircle, XCircle
+  CalendarCheck, Clock, Timer, Crosshair, Pen, AlertTriangle, Info, CircleAlert, Quote
 } from 'lucide-react';
 import { WIZARD_STEPS_DATA, STEP_LABELS, STEPS } from '@/lib/checklist-config';
 import {
   getTodayChecklist, saveTodayChecklist, createEmptyChecklist,
   formatDateDisplay, getNYTime, formatDateKey
 } from '@/lib/storage';
+import { isNewTradeData } from '@/lib/types';
 import type { ChecklistData } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import TradeRegistration from './TradeRegistration';
 
 const stepIcons = [Brain, Calendar, CalendarRange, CalendarCheck, Clock, Timer, Crosshair, Pen];
 
@@ -29,24 +31,21 @@ export default function ChecklistWizard() {
     });
   }, []);
 
-  const handleTradeDecision = (hadEntry: boolean) => {
-    setData(prev => ({ ...prev, hadEntry }));
-  };
-
-  const handleFvgSelect = (count: number) => {
-    setData(prev => ({
-      ...prev,
-      tradeData: { fvgCount: count, notes: prev.tradeData?.notes || '', result: null, points: null },
-    }));
-  };
+  const handleDataUpdate = useCallback((updates: Partial<ChecklistData>) => {
+    setData(prev => ({ ...prev, ...updates }));
+  }, []);
 
   const handleFinish = () => {
     if (data.hadEntry === undefined) {
       toast({ title: 'Indica si hubo entrada hoy (SÍ o NO)', variant: 'destructive' });
       return;
     }
-    if (data.hadEntry && !data.tradeData?.fvgCount) {
-      toast({ title: 'Selecciona el número de FVG identificados', variant: 'destructive' });
+    if (data.hadEntry && !isNewTradeData(data.tradeData)) {
+      toast({ title: 'Completa los datos del trade', variant: 'destructive' });
+      return;
+    }
+    if (data.hadEntry && isNewTradeData(data.tradeData) && data.tradeData.trades.length === 0) {
+      toast({ title: 'Selecciona cuántos trades ejecutaste', variant: 'destructive' });
       return;
     }
     saveTodayChecklist(data);
@@ -121,125 +120,6 @@ export default function ChecklistWizard() {
     );
   };
 
-  const renderStep8 = () => (
-    <div className="fade-in">
-      <div className="text-center my-8">
-        <h3 className="text-lg font-titles font-semibold text-foreground mb-5">¿Hubo entrada hoy?</h3>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <button
-            type="button"
-            onClick={() => handleTradeDecision(true)}
-            className={`flex flex-col items-center gap-3 px-8 py-6 rounded-xl border-2 font-titles font-semibold transition-all ${
-              data.hadEntry === true
-                ? 'border-primary bg-primary/10 text-primary gold-shadow'
-                : 'border-border text-foreground hover:border-primary hover:bg-primary/5'
-            }`}
-          >
-            <CheckCircle className="w-10 h-10" />
-            <span>SÍ — Ejecuté Trade</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTradeDecision(false)}
-            className={`flex flex-col items-center gap-3 px-8 py-6 rounded-xl border-2 font-titles font-semibold transition-all ${
-              data.hadEntry === false
-                ? 'border-destructive bg-destructive/10 text-destructive'
-                : 'border-border text-foreground hover:border-destructive hover:bg-destructive/5'
-            }`}
-          >
-            <XCircle className="w-10 h-10" />
-            <span>NO — Sin Entrada</span>
-          </button>
-        </div>
-      </div>
-
-      {data.hadEntry === true && (
-        <div className="fade-in space-y-6">
-          <div>
-            <h3 className="text-base font-titles font-semibold text-foreground text-center mb-4">
-              Reglas FVG — ¿Cuántos FVG identificaste?
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[
-                { val: 1, title: '1 FVG', rules: ['Ejecutar en el único FVG', 'SL: Proteger 3 velas del FVG', 'Si no 1:1.2, esperar descuento'] },
-                { val: 2, title: '2 FVG', rules: ['Ejecutar en el ÚLTIMO FVG', 'SL: Proteger 3 velas del 1er FVG', 'Si no 1:1.2, descuento o vela envolvente'] },
-                { val: 3, title: '3+ FVG', rules: ['Esperar protocolo vela envolvente', 'NO ejecutar sin protocolo'] },
-              ].map(fvg => (
-                <button
-                  key={fvg.val}
-                  type="button"
-                  onClick={() => handleFvgSelect(fvg.val)}
-                  className={`p-5 rounded-xl border-2 text-left transition-all ${
-                    data.tradeData?.fvgCount === fvg.val
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-accent bg-background'
-                  }`}
-                >
-                  <strong className="text-primary text-sm block mb-2">{fvg.title}</strong>
-                  {fvg.rules.map((r, i) => (
-                    <p key={i} className="text-xs text-muted-foreground leading-relaxed">→ {r}</p>
-                  ))}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {renderAlertBox('warning', 'RECORDATORIO: NO mover el SL (sin break even). Solo TP o SL inicial.')}
-
-          <div>
-            <label className="text-sm font-medium text-primary block mb-2">Notas Adicionales</label>
-            <textarea
-              value={data.tradeData?.notes || ''}
-              onChange={(e) => setData(prev => ({
-                ...prev,
-                tradeData: { ...prev.tradeData!, notes: e.target.value },
-              }))}
-              rows={3}
-              placeholder="Ej: Confluencia perfecta con zona semanal..."
-              className="w-full p-3 bg-background border-2 border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors resize-none"
-            />
-          </div>
-        </div>
-      )}
-
-      {data.hadEntry === false && (
-        <div className="fade-in space-y-4">
-          <h3 className="text-base font-titles font-semibold text-foreground text-center">¿Por qué no ejecutaste?</h3>
-          <div className="space-y-2">
-            {['R:R no era mínimo 1:1.2', 'Fuera de ventana 9:30-10:15 AM'].map((reason, idx) => (
-              <label key={idx} className="flex items-center gap-3 p-4 bg-background rounded-lg cursor-pointer hover:bg-secondary transition-colors">
-                <input
-                  type="checkbox"
-                  className="custom-checkbox"
-                  checked={data.noEntryReasons.includes(reason)}
-                  onChange={(e) => {
-                    setData(prev => ({
-                      ...prev,
-                      noEntryReasons: e.target.checked
-                        ? [...prev.noEntryReasons, reason]
-                        : prev.noEntryReasons.filter(r => r !== reason),
-                    }));
-                  }}
-                />
-                <span className="text-sm text-foreground">{reason}</span>
-              </label>
-            ))}
-          </div>
-          <div>
-            <label className="text-sm font-medium text-primary block mb-2">Notas Adicionales</label>
-            <textarea
-              value={data.notes}
-              onChange={(e) => setData(prev => ({ ...prev, notes: e.target.value }))}
-              rows={3}
-              placeholder="Describe qué observaste hoy..."
-              className="w-full p-3 bg-background border-2 border-border rounded-lg text-foreground text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors resize-none"
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <div className="fade-in">
       {/* Header */}
@@ -301,7 +181,9 @@ export default function ChecklistWizard() {
           {currentStep <= 7 ? WIZARD_STEPS_DATA[currentStep - 1].subtitle : 'Decisión final y registro'}
         </p>
 
-        {currentStep <= 7 ? renderChecklistStep(currentStep - 1) : renderStep8()}
+        {currentStep <= 7 ? renderChecklistStep(currentStep - 1) : (
+          <TradeRegistration data={data} onUpdate={handleDataUpdate} />
+        )}
       </div>
 
       {/* Navigation */}

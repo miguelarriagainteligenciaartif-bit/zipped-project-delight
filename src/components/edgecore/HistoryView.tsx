@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react';
-import { History as HistoryIcon, CheckCircle, XCircle, Trophy, Minus } from 'lucide-react';
+import { History as HistoryIcon, Trophy, Minus } from 'lucide-react';
 import { getTradeHistory, getChecklistCompletion, formatDateDisplay, updateTradeResult } from '@/lib/storage';
-import type { TradeHistoryItem } from '@/lib/types';
+import { isNewTradeData, isLegacyTradeData } from '@/lib/types';
+import type { TradeHistoryItem, SingleTradeData } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+
+function getTradesFromItem(item: TradeHistoryItem): SingleTradeData[] {
+  if (!item.hadEntry || !item.tradeData) return [];
+  if (isNewTradeData(item.tradeData)) return item.tradeData.trades;
+  if (isLegacyTradeData(item.tradeData)) {
+    return [{
+      model: 'M1',
+      fvgCount: (item.tradeData.fvgCount || 1) as 1 | 2 | 3,
+      notes: item.tradeData.notes || '',
+      result: item.tradeData.result,
+      points: item.tradeData.points,
+    }];
+  }
+  return [];
+}
 
 export default function HistoryView() {
   const [filterPeriod, setFilterPeriod] = useState('all');
@@ -19,9 +35,9 @@ export default function HistoryView() {
 
   useEffect(() => { loadHistory(); }, [filterPeriod, filterType]);
 
-  const handleUpdateResult = (dateKey: string, result: 'win' | 'loss') => {
+  const handleUpdateResult = (dateKey: string, tradeIndex: number, result: 'win' | 'loss') => {
     if (!confirm(`¿Confirmas que este trade fue un ${result === 'win' ? 'WIN' : 'LOSS'}?`)) return;
-    updateTradeResult(dateKey, result);
+    updateTradeResult(dateKey, tradeIndex, result);
     toast({ title: `Trade marcado como ${result === 'win' ? 'WIN ✅' : 'LOSS ❌'}` });
     loadHistory();
   };
@@ -61,82 +77,107 @@ export default function HistoryView() {
         </div>
       ) : (
         <div className="space-y-4">
-          {history.map((trade, i) => {
-            const completion = getChecklistCompletion(trade.checklist);
-            const isEntry = trade.hadEntry;
-            const result = trade.tradeData?.result;
+          {history.map((item, i) => {
+            const completion = getChecklistCompletion(item.checklist);
+            const isEntry = item.hadEntry;
+            const trades = getTradesFromItem(item);
+            const allResults = trades.map(t => t.result);
+            const hasWin = allResults.includes('win');
+            const hasLoss = allResults.includes('loss');
+            const hasPending = allResults.includes(null);
+
+            const borderColor = !isEntry ? 'border-l-destructive' :
+              hasWin && !hasLoss ? 'border-l-success' :
+              hasLoss && !hasWin ? 'border-l-destructive' :
+              hasPending ? 'border-l-primary' :
+              'border-l-primary';
 
             return (
-              <div
-                key={i}
-                className={`card-surface p-5 border-l-4 ${
-                  !isEntry ? 'border-l-destructive' :
-                  result === 'win' ? 'border-l-success' :
-                  result === 'loss' ? 'border-l-destructive' :
-                  'border-l-primary'
-                }`}
-              >
+              <div key={i} className={`card-surface p-5 border-l-4 ${borderColor}`}>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
                   <span className="text-sm font-titles font-bold text-primary capitalize">
-                    {formatDateDisplay(trade.date)}
+                    {formatDateDisplay(item.date)}
                   </span>
-                  <span className={`px-3 py-1 rounded-md text-xs font-semibold ${
-                    isEntry ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'
-                  }`}>
-                    {isEntry ? 'TRADE EJECUTADO' : 'SIN OPERACIÓN'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  <div>
-                    <span className="text-xs text-muted-foreground">Checklist</span>
-                    <p className="text-sm font-semibold text-foreground">{completion}% completado</p>
+                  <div className="flex items-center gap-2">
+                    {isEntry && trades.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-primary/20 text-primary">
+                        {trades.length} {trades.length === 1 ? 'trade' : 'trades'}
+                      </span>
+                    )}
+                    <span className={`px-3 py-1 rounded-md text-xs font-semibold ${
+                      isEntry ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'
+                    }`}>
+                      {isEntry ? 'TRADE EJECUTADO' : 'SIN OPERACIÓN'}
+                    </span>
                   </div>
-                  {isEntry && trade.tradeData && (
-                    <>
-                      <div>
-                        <span className="text-xs text-muted-foreground">FVG Count</span>
-                        <p className="text-sm font-semibold text-foreground">{trade.tradeData.fvgCount} FVG</p>
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">Resultado</span>
-                        <p className="text-sm font-semibold">
-                          {result === 'win' ? <span className="text-success">✅ WIN</span> :
-                           result === 'loss' ? <span className="text-destructive">❌ LOSS</span> :
-                           <span className="text-primary">⏳ Pendiente</span>}
-                        </p>
-                      </div>
-                    </>
-                  )}
-                  {!isEntry && trade.noEntryReasons?.length > 0 && (
-                    <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">Razones</span>
-                      <p className="text-sm text-foreground">{trade.noEntryReasons.join(', ')}</p>
-                    </div>
-                  )}
                 </div>
 
-                {trade.tradeData?.notes && (
-                  <p className="text-xs text-muted-foreground mt-3">
-                    <strong>Notas:</strong> {trade.tradeData.notes}
-                  </p>
+                <div className="mb-3">
+                  <span className="text-xs text-muted-foreground">Checklist</span>
+                  <p className="text-sm font-semibold text-foreground">{completion}% completado</p>
+                </div>
+
+                {/* Individual trades */}
+                {isEntry && trades.length > 0 && (
+                  <div className="space-y-3">
+                    {trades.map((trade, tIdx) => (
+                      <div key={tIdx} className="bg-background rounded-lg p-4 border border-border">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          {trades.length > 1 && (
+                            <span className="text-xs font-titles font-bold text-primary">Trade {tIdx + 1}</span>
+                          )}
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-accent/20 text-accent">
+                            {trade.model}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary">
+                            {trade.fvgCount === 3 ? '3+ FVG (Envolvente)' : `${trade.fvgCount} FVG`}
+                          </span>
+                          <span className="text-sm font-semibold ml-auto">
+                            {trade.result === 'win' ? <span className="text-success">✅ WIN</span> :
+                             trade.result === 'loss' ? <span className="text-destructive">❌ LOSS</span> :
+                             <span className="text-primary">⏳ Pendiente</span>}
+                          </span>
+                        </div>
+
+                        {trade.notes && (
+                          <p className="text-xs text-muted-foreground mb-2">
+                            <strong>Notas:</strong> {trade.notes}
+                          </p>
+                        )}
+
+                        {trade.result === null && (
+                          <div className="flex gap-3 pt-2 border-t border-border">
+                            <button
+                              onClick={() => handleUpdateResult(item.date, tIdx, 'win')}
+                              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border border-success/50 text-success text-xs font-semibold hover:bg-success/10 transition-colors"
+                            >
+                              <Trophy className="w-3 h-3" /> WIN
+                            </button>
+                            <button
+                              onClick={() => handleUpdateResult(item.date, tIdx, 'loss')}
+                              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border border-destructive/50 text-destructive text-xs font-semibold hover:bg-destructive/10 transition-colors"
+                            >
+                              <Minus className="w-3 h-3" /> LOSS
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
 
-                {isEntry && trade.tradeData?.result === null && (
-                  <div className="flex gap-3 mt-4 pt-4 border-t border-border">
-                    <button
-                      onClick={() => handleUpdateResult(trade.date, 'win')}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 border-success/50 text-success text-sm font-semibold hover:bg-success/10 transition-colors"
-                    >
-                      <Trophy className="w-4 h-4" /> Marcar WIN
-                    </button>
-                    <button
-                      onClick={() => handleUpdateResult(trade.date, 'loss')}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 border-destructive/50 text-destructive text-sm font-semibold hover:bg-destructive/10 transition-colors"
-                    >
-                      <Minus className="w-4 h-4" /> Marcar LOSS
-                    </button>
+                {!isEntry && item.noEntryReasons?.length > 0 && (
+                  <div className="mt-2">
+                    <span className="text-xs text-muted-foreground">Razones</span>
+                    <p className="text-sm text-foreground">{item.noEntryReasons.join(', ')}</p>
                   </div>
+                )}
+
+                {/* General notes */}
+                {isEntry && isNewTradeData(item.tradeData) && item.tradeData.notes && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    <strong>Notas generales:</strong> {item.tradeData.notes}
+                  </p>
                 )}
               </div>
             );
