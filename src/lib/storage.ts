@@ -3,49 +3,24 @@ import { isNewTradeData, isLegacyTradeData } from './types';
 import { STEPS, TRADING_CONFIG } from './checklist-config';
 
 const KEYS = {
-  USERS: 'edgecore_nasdaq_users',
-  CURRENT_USER: 'edgecore_nasdaq_current_user',
   USER_DATA: 'edgecore_nasdaq_data_',
 };
 
-// ========== AUTH ==========
+// ========== CURRENT USER ID (set by auth hook) ==========
 
-export function registerUser(username: string, password: string): { success: boolean; message: string } {
-  const users = getAllUsers();
+let currentUserId: string | null = null;
 
-  if (users[username]) return { success: false, message: 'El usuario ya existe' };
-  if (username.length < 3) return { success: false, message: 'El usuario debe tener al menos 3 caracteres' };
-  if (password.length < 6) return { success: false, message: 'La contraseña debe tener al menos 6 caracteres' };
-
-  users[username] = { username, password: btoa(password), createdAt: new Date().toISOString() };
-  localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-  initUserData(username);
-  return { success: true, message: 'Usuario registrado exitosamente' };
+export function setCurrentUserId(id: string | null) {
+  currentUserId = id;
 }
 
-export function loginUser(username: string, password: string): { success: boolean; message: string } {
-  const users = getAllUsers();
-  const user = users[username];
-  if (!user) return { success: false, message: 'Usuario no encontrado' };
-  if (user.password !== btoa(password)) return { success: false, message: 'Contraseña incorrecta' };
-  localStorage.setItem(KEYS.CURRENT_USER, username);
-  return { success: true, message: 'Inicio de sesión exitoso' };
+export function getCurrentUserId(): string | null {
+  return currentUserId;
 }
 
-export function logoutUser() {
-  localStorage.removeItem(KEYS.CURRENT_USER);
-}
+// ========== USER DATA ==========
 
-export function getCurrentUser(): string | null {
-  return localStorage.getItem(KEYS.CURRENT_USER);
-}
-
-function getAllUsers(): Record<string, { username: string; password: string; createdAt: string }> {
-  const json = localStorage.getItem(KEYS.USERS);
-  return json ? JSON.parse(json) : {};
-}
-
-function initUserData(username: string) {
+function initUserData(userId: string) {
   const userData: UserData = {
     trades: {},
     statistics: {
@@ -55,22 +30,24 @@ function initUserData(username: string) {
       checklistCompleteCount: 0, checklistCompletePercentage: 0,
     },
   };
-  localStorage.setItem(KEYS.USER_DATA + username, JSON.stringify(userData));
+  localStorage.setItem(KEYS.USER_DATA + userId, JSON.stringify(userData));
+  return userData;
 }
 
 // ========== USER DATA ==========
 
 export function getUserData(): UserData | null {
-  const username = getCurrentUser();
-  if (!username) return null;
-  const json = localStorage.getItem(KEYS.USER_DATA + username);
-  return json ? JSON.parse(json) : null;
+  const userId = getCurrentUserId();
+  if (!userId) return null;
+  const json = localStorage.getItem(KEYS.USER_DATA + userId);
+  if (!json) return initUserData(userId);
+  return JSON.parse(json);
 }
 
 export function saveUserData(userData: UserData) {
-  const username = getCurrentUser();
-  if (!username) return;
-  localStorage.setItem(KEYS.USER_DATA + username, JSON.stringify(userData));
+  const userId = getCurrentUserId();
+  if (!userId) return;
+  localStorage.setItem(KEYS.USER_DATA + userId, JSON.stringify(userData));
 }
 
 // ========== CHECKLIST ==========
@@ -327,7 +304,4 @@ export function formatDateDisplay(dateStr: string): string {
   });
 }
 
-// Init storage
-if (!localStorage.getItem(KEYS.USERS)) {
-  localStorage.setItem(KEYS.USERS, JSON.stringify({}));
-}
+// No init needed - user data is initialized on first access

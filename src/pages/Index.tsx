@@ -1,37 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAuth } from '@/hooks/use-auth';
 import AuthScreen from '@/components/edgecore/AuthScreen';
 import Sidebar from '@/components/edgecore/Sidebar';
 import ChecklistWizard from '@/components/edgecore/ChecklistWizard';
 import HistoryView from '@/components/edgecore/HistoryView';
 import StatisticsView from '@/components/edgecore/StatisticsView';
-import { getCurrentUser, logoutUser } from '@/lib/storage';
 import type { ViewType } from '@/lib/types';
 
 const Index = () => {
-  const [username, setUsername] = useState<string | null>(null);
+  const { user, username, loading, isAuthenticated, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<ViewType>('checklist');
-  const [isReady, setIsReady] = useState(false);
 
-  useEffect(() => {
-    const user = getCurrentUser();
-    if (user) setUsername(user);
-    setIsReady(true);
-  }, []);
-
-  const handleLogin = (user: string) => {
-    setUsername(user);
-    setCurrentView('checklist');
-  };
-
-  const handleLogout = () => {
-    if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-      logoutUser();
-      setUsername(null);
-      setCurrentView('checklist');
-    }
-  };
-
-  if (!isReady) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -39,19 +19,26 @@ const Index = () => {
     );
   }
 
-  if (!username) {
-    return <AuthScreen onLogin={handleLogin} />;
+  if (!isAuthenticated) {
+    return <AuthScreen onLogin={() => {}} />;
   }
+
+  const displayName = username || user?.email || 'Trader';
+
+  const handleLogout = async () => {
+    if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+      await signOut();
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar
         currentView={currentView}
         onViewChange={setCurrentView}
-        username={username}
+        username={displayName}
         onLogout={handleLogout}
       />
-      {/* pt-14 = top bar height on mobile, pb-20 = bottom nav on mobile */}
       <main className="flex-1 pt-16 pb-20 px-4 md:pt-0 md:pb-0 md:ml-60 md:p-8 min-h-screen">
         {currentView === 'checklist' && <ChecklistWizard key={currentView} />}
         {currentView === 'history' && <HistoryView key={currentView} />}
