@@ -71,7 +71,10 @@ export function getTodayChecklist(): ChecklistData {
   const todayNY = getNYTime();
   const dateKey = formatDateKey(todayNY);
   const userData = getUserData();
-  if (userData?.trades[dateKey]) return userData.trades[dateKey];
+  const existing = userData?.trades[dateKey];
+  // If already finalized today, return a fresh empty checklist
+  if (existing?.savedAt) return createEmptyChecklist();
+  if (existing) return existing;
   return createEmptyChecklist();
 }
 
