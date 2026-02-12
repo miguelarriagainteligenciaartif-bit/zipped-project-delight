@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   ChevronLeft, ChevronRight, Check, Brain, Calendar, CalendarRange,
   CalendarCheck, Clock, Timer, Crosshair, Pen, AlertTriangle, Info, CircleAlert, Quote
@@ -20,7 +20,16 @@ export default function ChecklistWizard() {
   const [data, setData] = useState<ChecklistData>(() => getTodayChecklist());
   const { toast } = useToast();
   const totalSteps = 8;
-  const todayDisplay = formatDateDisplay(formatDateKey(getNYTime()));
+  const todayKey = formatDateKey(getNYTime());
+  const todayDisplay = formatDateDisplay(todayKey);
+
+  // Reset checklist when the date changes (app left open overnight)
+  useEffect(() => {
+    if (data.date !== todayKey) {
+      setData(getTodayChecklist());
+      setCurrentStep(1);
+    }
+  }, [todayKey, data.date]);
 
   const updateChecklist = useCallback((stepId: string, itemIdx: number, checked: boolean) => {
     setData(prev => {
